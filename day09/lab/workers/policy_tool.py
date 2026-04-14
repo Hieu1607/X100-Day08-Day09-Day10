@@ -20,6 +20,11 @@ import os
 import sys
 from typing import Optional
 
+from datetime import datetime
+from dotenv import load_dotenv
+from openai import OpenAI
+load_dotenv()
+
 WORKER_NAME = "policy_tool_worker"
 
 
@@ -62,83 +67,130 @@ def _call_mcp_tool(tool_name: str, tool_input: dict) -> dict:
 # Policy Analysis Logic
 # ─────────────────────────────────────────────
 
+def _extract_order_date(task: str):
+    """Parse ngày đơn hàng từ text (basic version)"""
+    import re
+
+    patterns = [
+        "(\d{1,2}/\d{1,2}/\d{4})",
+        "(\d{1,2}-\d{1,2}-\d{4})",
+    ]
+
+    for p in patterns:
+        match = re.search(p, task)
+        if match:
+            try:
+                return datetime.strptime(match.group(1).replace("-", "/"), "%d/%m/%Y")
+            except:
+                continue
+    return None
+
+
 def analyze_policy(task: str, chunks: list) -> dict:
-    """
-    Phân tích policy dựa trên context chunks.
-
-    TODO Sprint 2: Implement logic này với LLM call hoặc rule-based check.
-
-    Cần xử lý các exceptions:
-    - Flash Sale → không được hoàn tiền
-    - Digital product / license key / subscription → không được hoàn tiền
-    - Sản phẩm đã kích hoạt → không được hoàn tiền
-    - Đơn hàng trước 01/02/2026 → áp dụng policy v3 (không có trong docs)
-
-    Returns:
-        dict with: policy_applies, policy_name, exceptions_found, source, rule, explanation
-    """
     task_lower = task.lower()
     context_text = " ".join([c.get("text", "") for c in chunks]).lower()
 
-    # --- Rule-based exception detection ---
     exceptions_found = []
+    decision_trace = []
 
-    # Exception 1: Flash Sale
+    # --- RULE 1: Flash Sale ---
     if "flash sale" in task_lower or "flash sale" in context_text:
         exceptions_found.append({
             "type": "flash_sale_exception",
             "rule": "Đơn hàng Flash Sale không được hoàn tiền (Điều 3, chính sách v4).",
             "source": "policy_refund_v4.txt",
         })
+        decision_trace.append("Matched flash sale rule")
 
-    # Exception 2: Digital product
-    if any(kw in task_lower for kw in ["license key", "license", "subscription", "kỹ thuật số"]):
+    # --- RULE 2: Digital product ---
+    if any(kw in task_lower for kw in ["license", "subscription", "kỹ thuật số"]):
         exceptions_found.append({
             "type": "digital_product_exception",
-            "rule": "Sản phẩm kỹ thuật số (license key, subscription) không được hoàn tiền (Điều 3).",
+            "rule": "Sản phẩm kỹ thuật số không được hoàn tiền (Điều 3).",
             "source": "policy_refund_v4.txt",
         })
+        decision_trace.append("Matched digital product rule")
 
-    # Exception 3: Activated product
-    if any(kw in task_lower for kw in ["đã kích hoạt", "đã đăng ký", "đã sử dụng"]):
+    # --- RULE 3: Activated ---
+    if any(kw in task_lower for kw in ["đã kích hoạt", "đã sử dụng"]):
         exceptions_found.append({
             "type": "activated_exception",
-            "rule": "Sản phẩm đã kích hoạt hoặc đăng ký tài khoản không được hoàn tiền (Điều 3).",
+            "rule": "Sản phẩm đã kích hoạt không được hoàn tiền.",
             "source": "policy_refund_v4.txt",
         })
+        decision_trace.append("Matched activated rule")
 
-    # Determine policy_applies
-    policy_applies = len(exceptions_found) == 0
-
-    # Determine which policy version applies (temporal scoping)
-    # TODO: Check nếu đơn hàng trước 01/02/2026 → v3 applies (không có docs, nên flag cho synthesis)
+    # --- TIME LOGIC ---
     policy_name = "refund_policy_v4"
     policy_version_note = ""
-    if "31/01" in task_lower or "30/01" in task_lower or "trước 01/02" in task_lower:
-        policy_version_note = "Đơn hàng đặt trước 01/02/2026 áp dụng chính sách v3 (không có trong tài liệu hiện tại)."
 
-    # TODO Sprint 2: Gọi LLM để phân tích phức tạp hơn
-    # Ví dụ:
-    # from openai import OpenAI
-    # client = OpenAI()
-    # response = client.chat.completions.create(
-    #     model="gpt-4o-mini",
-    #     messages=[
-    #         {"role": "system", "content": "Bạn là policy analyst. Dựa vào context, xác định policy áp dụng và các exceptions."},
-    #         {"role": "user", "content": f"Task: {task}\n\nContext:\n" + "\n".join([c['text'] for c in chunks])}
-    #     ]
-    # )
-    # analysis = response.choices[0].message.content
+    order_date = _extract_order_date(task)
+    cutoff_date = datetime(2026, 2, 1)
 
+    if order_date and order_date < cutoff_date:
+        policy_name = "refund_policy_v3"
+        policy_version_note = "Áp dụng policy v3 (không có trong docs)."
+        decision_trace.append("Detected pre-2026-02-01 order")
+
+    # --- RULE DECISION ---
+    policy_applies = len(exceptions_found) == 0
+
+    # --- LLM ANALYSIS (fallback / enhancement) ---
+    llm_analysis = None
+    confidence = 0.7
+
+    try:
+        client = OpenAI(
+            api_key=os.getenv("SHOPAIKEY_API_KEY"), 
+            base_url="https://api.shopaikey.com/v1",
+            default_headers={"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36"}
+        )
+
+        response = client.chat.completions.create(
+            model="gpt-4o-mini",
+            temperature=0.2,
+            messages=[
+                {
+                    "role": "system",
+                    "content": "Bạn là policy analyst. Phân tích policy refund và exceptions."
+                },
+                {
+                    "role": "user",
+                    "content": f"""
+Task: {task}
+
+Context:
+{context_text}
+
+Trả về JSON:
+- policy_applies (true/false)
+- exceptions (list)
+- explanation
+"""
+                }
+            ],
+        )
+
+        llm_analysis = response.choices[0].message.content
+        confidence = 0.9
+
+    except Exception as e:
+        decision_trace.append(f"LLM failed: {str(e)}")
+
+    # --- SOURCES ---
     sources = list({c.get("source", "unknown") for c in chunks if c})
 
     return {
         "policy_applies": policy_applies,
         "policy_name": policy_name,
         "exceptions_found": exceptions_found,
-        "source": sources,
         "policy_version_note": policy_version_note,
-        "explanation": "Analyzed via rule-based policy check. TODO: upgrade to LLM-based analysis.",
+        "source": sources,
+        "llm_analysis": llm_analysis,
+        "confidence": confidence,
+        "decision_trace": decision_trace,
+        "needs_human_review": len(exceptions_found) == 0 and llm_analysis is None,
+        "explanation": "Hybrid rule-based + LLM analysis",
     }
 
 

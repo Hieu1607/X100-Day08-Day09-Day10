@@ -16,7 +16,11 @@ Gọi độc lập để test:
     python workers/synthesis.py
 """
 
+from openai import OpenAI
 import os
+from dotenv import load_dotenv
+
+load_dotenv()
 
 WORKER_NAME = "synthesis_worker"
 
@@ -39,7 +43,11 @@ def _call_llm(messages: list) -> str:
     # Option A: OpenAI
     try:
         from openai import OpenAI
-        client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+        client = OpenAI(
+            api_key=os.getenv("SHOPAIKEY_API_KEY"), 
+            base_url="https://api.shopaikey.com/v1",
+            default_headers={"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36"}
+        )
         response = client.chat.completions.create(
             model="gpt-4o-mini",
             messages=messages,
