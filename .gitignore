@@ -78,7 +78,7 @@ Thumbs.db
 *.pid
 
 # Data files (tuỳ project, nếu không muốn push)
-data/
+# data/
 *.csv
 *.parquet
 
@@ -95,3 +95,4 @@ docker-compose.override.yml
 .cgcignore
 .claude
 chroma_db/
+CLAUDE.md
