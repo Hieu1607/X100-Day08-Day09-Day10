@@ -17,6 +17,10 @@ Gọi độc lập để test:
 
 import os
 
+from dotenv import load_dotenv
+
+load_dotenv()
+
 # ─────────────────────────────────────────────
 # Worker Contract (xem contracts/worker_contracts.yaml)
 # Input:  {"task": str, "top_k": int = 3}
@@ -26,24 +30,50 @@ import os
 WORKER_NAME = "retrieval_worker"
 DEFAULT_TOP_K = 3
 
+# Tên collection ChromaDB. Day 09 kế thừa index từ Day 08 (`rag_lab`),
+# có thể override qua env DAY09_COLLECTION nếu rebuild.
+COLLECTION_NAME = os.getenv("DAY09_COLLECTION", "rag_lab")
+EMBEDDING_MODEL = "text-embedding-3-small"
+
+# Neo path vào vị trí file để CWD nào cũng tìm đúng chroma_db của day09/lab/.
+# Override bằng env CHROMA_DB_PATH nếu cần.
+_LAB_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+CHROMA_DB_PATH = os.getenv("CHROMA_DB_PATH", os.path.join(_LAB_ROOT, "chroma_db"))
+
 
 def _get_embedding_fn():
     """
     Trả về embedding function.
-    Ưu tiên OpenAI; fallback random chỉ để test local khi thiếu dependency/API key.
+    Dùng shopaikey gateway (OpenAI-compatible) để khớp model
+    `text-embedding-3-small` mà Day 08 đã dùng để build collection `rag_lab`.
+    Fallback random chỉ để test local khi thiếu dependency/API key.
     """
     try:
         from openai import OpenAI
 
-        client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+        api_key = os.getenv("SHOPAIKEY_API_KEY") or os.getenv("OPENAI_API_KEY")
+        if not api_key:
+            raise RuntimeError("Missing SHOPAIKEY_API_KEY/OPENAI_API_KEY")
+
+        client = OpenAI(
+            api_key=api_key,
+            base_url="https://api.shopaikey.com/v1",
+            default_headers={
+                "User-Agent": (
+                    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+                    "AppleWebKit/537.36 (KHTML, like Gecko) "
+                    "Chrome/122.0.0.0 Safari/537.36"
+                )
+            },
+        )
 
         def embed(text: str) -> list:
-            resp = client.embeddings.create(input=text, model="text-embedding-3-small")
+            resp = client.embeddings.create(input=text, model=EMBEDDING_MODEL)
             return resp.data[0].embedding
 
         return embed
-    except Exception:
-        pass
+    except Exception as e:
+        print(f"⚠️  Embedding via shopaikey failed: {e}")
 
     # Fallback: random embeddings cho test (KHÔNG dùng production)
     import random
@@ -58,19 +88,23 @@ def _get_embedding_fn():
 def _get_collection():
     """
     Kết nối ChromaDB collection.
-    TODO Sprint 2: Đảm bảo collection đã được build từ Step 3 trong README.
+    Sprint 2: dùng collection `rag_lab` kế thừa từ Day 08 (đã có 30 chunks).
+    Override bằng env DAY09_COLLECTION nếu rebuild riêng cho Day 09.
     """
     import chromadb
 
-    client = chromadb.PersistentClient(path="./chroma_db")
+    client = chromadb.PersistentClient(path=CHROMA_DB_PATH)
     try:
-        collection = client.get_collection("day09_docs")
+        collection = client.get_collection(COLLECTION_NAME)
     except Exception:
         collection = client.get_or_create_collection(
-            "day09_docs",
+            COLLECTION_NAME,
             metadata={"hnsw:space": "cosine"},
         )
-        print("⚠️  Collection 'day09_docs' chưa có data. Chạy index script trong README trước.")
+        print(
+            f"⚠️  Collection '{COLLECTION_NAME}' chưa có data. "
+            "Chạy index script trong README trước (hoặc copy chroma_db từ Day 08)."
+        )
     return collection
 
 
