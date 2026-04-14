@@ -7,7 +7,7 @@
 | Nguyễn Minh Hiếu | Supervisor Owner | nguyenhieu16072004@gmail.com |
 | Tống Tiến Mạnh | Worker Owner | tienmanhttm2018@gmail.com |
 | Hà Huy Hoàng | Worker Owner | masterjtrhoang171110x@gmail.com |
-| Nguyễn Tùng Lâm | MCP Owner | nguyenlamtung2005@gmail.com |
+| Nguyễn Lâm Tùng | MCP Owner | nguyenlamtung2005@gmail.com |
 | Trần Gia Khánh | MCP Owner | giakhanh28031995@gmail.com |
 | Nguyễn Việt Long | Trace & Docs Owner | nguyenvietlong9k@gmail.com |
 | Nguyễn Quang Đăng | Trace & Docs Owner | dangnguyen12a@gmail.com |
