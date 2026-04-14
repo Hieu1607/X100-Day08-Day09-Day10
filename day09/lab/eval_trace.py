@@ -23,9 +23,29 @@ import re
 from datetime import datetime
 from typing import Optional
 
+# ─────────────────────────────────────────────
+# Absolute paths — neo vào vị trí file để chạy được từ bất kỳ CWD nào.
+# ─────────────────────────────────────────────
+LAB_ROOT = os.path.dirname(os.path.abspath(__file__))
+DATA_DIR = os.path.join(LAB_ROOT, "data")
+ARTIFACTS_DIR = os.path.join(LAB_ROOT, "artifacts")
+TRACES_DIR = os.path.join(ARTIFACTS_DIR, "traces")
+GRADING_LOG_PATH = os.path.join(ARTIFACTS_DIR, "grading_run.jsonl")
+EVAL_REPORT_PATH = os.path.join(ARTIFACTS_DIR, "eval_report.json")
+DEFAULT_TEST_QUESTIONS = os.path.join(DATA_DIR, "test_questions.json")
+DEFAULT_GRADING_QUESTIONS = os.path.join(DATA_DIR, "grading_questions.json")
+
+# Day 08 results (để fallback baseline trong compare_single_vs_multi)
+REPO_ROOT = os.path.dirname(os.path.dirname(LAB_ROOT))
+DAY08_RESULTS_DIR = os.path.join(REPO_ROOT, "day08", "lab", "results")
+DAY08_SCORECARD_PATH = os.path.join(DAY08_RESULTS_DIR, "scorecard_baseline.md")
+DAY08_AB_CSV_PATH = os.path.join(DAY08_RESULTS_DIR, "ab_comparison.csv")
+
+
 def _get_graph_api():
     """Lazy import graph để mode analyze/compare chạy được ngay cả khi thiếu runtime deps."""
-    sys.path.insert(0, os.path.dirname(__file__))
+    if LAB_ROOT not in sys.path:
+        sys.path.insert(0, LAB_ROOT)
     from graph import run_graph, save_trace
     return run_graph, save_trace
 
@@ -124,14 +144,11 @@ def _load_day08_baseline(day08_results_file: Optional[str] = None) -> dict:
         except Exception:
             pass
 
-    # 2) Fallback: dùng scorecard markdown từ Day 08
-    scorecard_path = os.path.join("..", "day08", "lab", "results", "scorecard_baseline.md")
-    scorecard_path = os.path.normpath(scorecard_path)
-    baseline.update(_parse_scorecard_markdown(scorecard_path))
+    # 2) Fallback: dùng scorecard markdown từ Day 08 (absolute path)
+    baseline.update(_parse_scorecard_markdown(DAY08_SCORECARD_PATH))
 
     # 3) Fallback: tính abstain rate từ ab_comparison.csv (baseline_dense)
-    ab_csv_path = os.path.join("..", "day08", "lab", "results", "ab_comparison.csv")
-    ab_csv_path = os.path.normpath(ab_csv_path)
+    ab_csv_path = DAY08_AB_CSV_PATH
     if os.path.exists(ab_csv_path):
         try:
             total = 0
@@ -157,7 +174,7 @@ def _load_day08_baseline(day08_results_file: Optional[str] = None) -> dict:
 # 1. Run Pipeline on Test Questions
 # ─────────────────────────────────────────────
 
-def run_test_questions(questions_file: str = "data/test_questions.json") -> list:
+def run_test_questions(questions_file: str = DEFAULT_TEST_QUESTIONS) -> list:
     """
     Chạy pipeline với danh sách câu hỏi, lưu trace từng câu.
 
@@ -183,7 +200,7 @@ def run_test_questions(questions_file: str = "data/test_questions.json") -> list
             result = run_graph(question_text)
 
             # Save individual trace
-            trace_file = save_trace(result, f"artifacts/traces")
+            trace_file = save_trace(result, TRACES_DIR)
             print(f"  ✓ route={result.get('supervisor_route', '?')}, "
                   f"conf={result.get('confidence', 0):.2f}, "
                   f"{result.get('latency_ms', 0)}ms")
@@ -215,7 +232,7 @@ def run_test_questions(questions_file: str = "data/test_questions.json") -> list
 # 2. Run Grading Questions (Sprint 4)
 # ─────────────────────────────────────────────
 
-def run_grading_questions(questions_file: str = "data/grading_questions.json") -> str:
+def run_grading_questions(questions_file: str = DEFAULT_GRADING_QUESTIONS) -> str:
     """
     Chạy pipeline với grading questions và lưu JSONL log.
     Dùng cho chấm điểm nhóm (chạy sau khi grading_questions.json được public lúc 17:00).
@@ -232,8 +249,8 @@ def run_grading_questions(questions_file: str = "data/grading_questions.json") -
     with open(questions_file, encoding="utf-8") as f:
         questions = json.load(f)
 
-    os.makedirs("artifacts", exist_ok=True)
-    output_file = "artifacts/grading_run.jsonl"
+    os.makedirs(ARTIFACTS_DIR, exist_ok=True)
+    output_file = GRADING_LOG_PATH
 
     print(f"\n🎯 Running GRADING questions — {len(questions)} câu")
     print(f"   Output → {output_file}")
@@ -297,7 +314,7 @@ def run_grading_questions(questions_file: str = "data/grading_questions.json") -
 # 3. Analyze Traces
 # ─────────────────────────────────────────────
 
-def analyze_traces(traces_dir: str = "artifacts/traces") -> dict:
+def analyze_traces(traces_dir: str = TRACES_DIR) -> dict:
     """
     Đọc tất cả trace files và tính metrics tổng hợp.
 
@@ -421,7 +438,7 @@ def analyze_traces(traces_dir: str = "artifacts/traces") -> dict:
 # ─────────────────────────────────────────────
 
 def compare_single_vs_multi(
-    multi_traces_dir: str = "artifacts/traces",
+    multi_traces_dir: str = TRACES_DIR,
     day08_results_file: Optional[str] = None,
 ) -> dict:
     """
@@ -484,8 +501,8 @@ def compare_single_vs_multi(
 
 def save_eval_report(comparison: dict) -> str:
     """Lưu báo cáo eval tổng kết ra file JSON."""
-    os.makedirs("artifacts", exist_ok=True)
-    output_file = "artifacts/eval_report.json"
+    os.makedirs(ARTIFACTS_DIR, exist_ok=True)
+    output_file = EVAL_REPORT_PATH
     with open(output_file, "w", encoding="utf-8") as f:
         json.dump(comparison, f, ensure_ascii=False, indent=2)
     return output_file
@@ -518,7 +535,7 @@ if __name__ == "__main__":
     parser.add_argument("--grading", action="store_true", help="Run grading questions")
     parser.add_argument("--analyze", action="store_true", help="Analyze existing traces")
     parser.add_argument("--compare", action="store_true", help="Compare single vs multi")
-    parser.add_argument("--test-file", default="data/test_questions.json", help="Test questions file")
+    parser.add_argument("--test-file", default=DEFAULT_TEST_QUESTIONS, help="Test questions file")
     args = parser.parse_args()
 
     if args.grading:
