@@ -97,3 +97,4 @@ docker-compose.override.yml
 chroma_db/
 day09/lab/data/grading_questions.json
 day10/lab/data/grading_questions.json
+CLAUDE.md
