@@ -324,10 +324,14 @@ def run_graph(task: str) -> AgentState:
     return result
 
 
-def save_trace(state: AgentState, output_dir: str = "./artifacts/traces") -> str:
-    """Lưu trace ra file JSON."""
+_LAB_ROOT = os.path.dirname(os.path.abspath(__file__))
+DEFAULT_TRACES_DIR = os.path.join(_LAB_ROOT, "artifacts", "traces")
+
+
+def save_trace(state: AgentState, output_dir: str = DEFAULT_TRACES_DIR) -> str:
+    """Lưu trace ra file JSON. Default dùng absolute path neo vào day09/lab/."""
     os.makedirs(output_dir, exist_ok=True)
-    filename = f"{output_dir}/{state['run_id']}.json"
+    filename = os.path.join(output_dir, f"{state['run_id']}.json")
     with open(filename, "w", encoding="utf-8") as f:
         json.dump(state, f, ensure_ascii=False, indent=2)
     return filename

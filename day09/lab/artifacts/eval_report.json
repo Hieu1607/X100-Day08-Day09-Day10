@@ -1,33 +1,37 @@
 {
-  "generated_at": "2026-04-14T16:59:19.987412",
+  "generated_at": "2026-04-14T17:55:42.052746",
   "day08_single_agent": {
-    "total_questions": 15,
+    "total_questions": 10,
     "avg_confidence": 0.82,
     "avg_latency_ms": 2500,
-    "abstain_rate": "20%",
-    "multi_hop_accuracy": "Not tracked"
+    "abstain_rate": "10%",
+    "multi_hop_accuracy": "Not tracked",
+    "faithfulness_score": 4.3,
+    "relevance_score": 4.8,
+    "context_recall_score": 5.0,
+    "completeness_score": 3.3
   },
   "day09_multi_agent": {
-    "total_traces": 15,
+    "total_traces": 40,
     "routing_distribution": {
-      "retrieval_worker": "8/15 (53%)",
-      "policy_tool_worker": "7/15 (47%)"
+      "retrieval_worker": "20/40 (50%)",
+      "policy_tool_worker": "20/40 (50%)"
     },
-    "avg_confidence": 0.475,
+    "avg_confidence": 0.461,
     "confidence_buckets": {
-      "0.00-0.29": 0,
-      "0.30-0.59": 10,
-      "0.60-0.79": 2,
+      "0.00-0.29": 4,
+      "0.30-0.59": 29,
+      "0.60-0.79": 4,
       "0.80-1.00": 3
     },
-    "avg_latency_ms": 4432,
-    "latency_p50_ms": 3855,
-    "latency_p95_ms": 8557,
+    "avg_latency_ms": 4668,
+    "latency_p50_ms": 5098,
+    "latency_p95_ms": 8865,
     "latency_p99_ms": 10732,
-    "mcp_usage_rate": "7/15 (47%)",
-    "mcp_tool_calls_total": 9,
-    "hitl_rate": "1/15 (7%)",
-    "abstain_rate": "67%",
+    "mcp_usage_rate": "20/40 (50%)",
+    "mcp_tool_calls_total": 28,
+    "hitl_rate": "2/40 (5%)",
+    "abstain_rate": "28%",
     "trace_quality": {
       "missing_supervisor_route": 0,
       "missing_route_reason": 0
@@ -36,16 +40,32 @@
       [
         "sla_p1_2026.txt",
         8
+      ],
+      [
+        "support/sla-p1-2026.pdf",
+        6
+      ],
+      [
+        "it/access-control-sop.md",
+        4
+      ],
+      [
+        "policy/refund-v4.pdf",
+        3
+      ],
+      [
+        "hr/leave-policy-2026.pdf",
+        2
       ]
     ]
   },
   "analysis": {
     "routing_visibility": "Day 09 có route_reason + supervisor_route cho từng câu → dễ debug hơn Day 08",
-    "latency_delta": "Day 09 latency: 4432ms vs Day 08: 2500ms (delta: +77.3%)",
-    "accuracy_delta": "Day 09 avg confidence: 0.475 vs Day 08: 0.820 (delta: -0.345)",
-    "abstain_delta": "Day 09 abstain rate: 67% vs Day 08: 20% (delta: +47pp)",
+    "latency_delta": "Day 09 latency: 4668ms vs Day 08: 2500ms (delta: +86.7%)",
+    "accuracy_delta": "Day 09 avg confidence: 0.461 vs Day 08: 0.820 (delta: -0.359)",
+    "abstain_delta": "Day 09 abstain rate: 28% vs Day 08: 10% (delta: +18pp)",
     "debuggability": "Multi-agent: có thể test từng worker độc lập. Single-agent: không thể.",
     "mcp_benefit": "Day 09 có thể extend capability qua MCP không cần sửa core. Day 08 phải hard-code.",
-    "routing_quality": "Day 09 routing distribution: {'retrieval_worker': '8/15 (53%)', 'policy_tool_worker': '7/15 (47%)'}"
+    "routing_quality": "Day 09 routing distribution: {'retrieval_worker': '20/40 (50%)', 'policy_tool_worker': '20/40 (50%)'}"
   }
 }
