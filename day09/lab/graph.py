@@ -201,10 +201,6 @@ def human_review_node(state: AgentState) -> AgentState:
 # 5. Import Workers
 # ─────────────────────────────────────────────
 
-<<<<<<< HEAD
-# TODO Sprint 2: Uncomment sau khi implement workers
-=======
->>>>>>> 96e2042854e9033dad0d9320f425e8725c7e68be
 from workers.retrieval import run as retrieval_run
 from workers.policy_tool import run as policy_tool_run
 from workers.synthesis import run as synthesis_run
@@ -226,24 +222,11 @@ def retrieval_worker_node(state: AgentState) -> AgentState:
 
 def policy_tool_worker_node(state: AgentState) -> AgentState:
     """Wrapper gọi policy/tool worker."""
-<<<<<<< HEAD
-    # TODO Sprint 2: Thay bằng policy_tool_run(state)
-    # Sprint 2 — DONE: delegate sang workers/policy_tool.py:run.
-    # Worker tự append vào workers_called/history/mcp_tools_used theo contract,
-    # và có thể gọi MCP search_kb nếu retrieved_chunks rỗng + needs_tool=True.
-=======
->>>>>>> 96e2042854e9033dad0d9320f425e8725c7e68be
     return policy_tool_run(state)
 
 
 def synthesis_worker_node(state: AgentState) -> AgentState:
     """Wrapper gọi synthesis worker."""
-<<<<<<< HEAD
-    # TODO Sprint 2: Thay bằng synthesis_run(state)
-    # Sprint 2 — DONE: delegate sang workers/synthesis.py:run.
-    # Worker phải abstain khi retrieved_chunks=[] và phải cite source theo contract.
-=======
->>>>>>> 96e2042854e9033dad0d9320f425e8725c7e68be
     return synthesis_run(state)
 
 
