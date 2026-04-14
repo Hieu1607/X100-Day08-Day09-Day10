@@ -42,9 +42,16 @@ _________________
 **MCP tools đã tích hợp:**
 > Liệt kê tools đã implement và 1 ví dụ trace có gọi MCP tool.
 
-- `search_kb`: ___________________
-- `get_ticket_info`: ___________________
-- ___________________: ___________________
+- `search_kb`: tìm evidence từ Knowledge Base, ưu tiên retrieval/ChromaDB và fallback sang lexical search trong `data/docs`.
+- `get_ticket_info`: tra cứu ticket nội bộ, ví dụ `P1-LATEST` trả về ticket P1 đang `in_progress`, SLA deadline và notifications.
+- `check_access_permission`: kiểm tra approver cần thiết cho access level 1-3, có xử lý emergency override.
+- `create_ticket`: tạo mock ticket theo priority/title để mô phỏng external Jira capability.
+
+MCP có 2 transport:
+- In-process: `workers/policy_tool.py` gọi `dispatch_tool()` để chạy ổn định trong local test.
+- HTTP bonus mode: chạy `python mcp_server.py --serve`, sau đó set `MCP_SERVER_URL=http://127.0.0.1:8765`; worker gọi `POST /tools/call` và trace ghi `transport="http"`.
+
+Ví dụ đã kiểm tra: với task `SLA P1 ticket Jira status policy`, policy worker gọi `search_kb` và `get_ticket_info` qua HTTP, trả sources gồm `sla_p1_2026.txt`, `access_control_sop.txt`, `it_helpdesk_faq.txt`.
 
 ---
 

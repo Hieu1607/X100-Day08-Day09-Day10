@@ -8,16 +8,16 @@
 
 ## 1. Tôi phụ trách phần nào? (100–150 từ)
 
-Trong phần Day 09, tôi phụ trách hoàn thiện `mcp_server.py` để module MCP có thể bàn giao cho sprint tiếp theo mà không phụ thuộc quá nhiều vào môi trường local. Công việc chính của tôi là làm cho MCP server đủ ổn định để `workers/policy_tool.py` gọi qua `dispatch_tool()` và ghi trace vào `mcp_tools_used`. Tôi tập trung vào `search_kb`, `get_ticket_info`, `check_access_permission`, `create_ticket`, đặc biệt là `search_kb(query, top_k)` vì đây là tool policy worker dùng để lấy evidence.
+Trong phần Day 09, tôi phụ trách hoàn thiện `mcp_server.py` để module MCP có thể bàn giao cho sprint tiếp theo mà không phụ thuộc quá nhiều vào môi trường local. Công việc chính của tôi là làm cho MCP server đủ ổn định để `workers/policy_tool.py` gọi qua `dispatch_tool()` và ghi trace vào `mcp_tools_used`. Sau đó tôi nâng cấp thêm HTTP transport để có real MCP-style server cho bonus, trong khi vẫn giữ fallback in-process để không làm vỡ luồng chạy local. Tôi tập trung vào `search_kb`, `get_ticket_info`, `check_access_permission`, `create_ticket`, đặc biệt là `search_kb(query, top_k)` vì đây là tool policy worker dùng để lấy evidence.
 
 **Module/file tôi chịu trách nhiệm:**
 - File chính: `mcp_server.py`
-- Functions tôi implement/củng cố: `tool_search_kb()`, `_lexical_search_docs()`, `_coerce_top_k()`, `_format_kb_result()`, `dispatch_tool()`
+- Functions tôi implement/củng cố: `tool_search_kb()`, `_lexical_search_docs()`, `_coerce_top_k()`, `_format_kb_result()`, `dispatch_tool()`, `serve_http()`
 
 **Cách công việc của tôi kết nối với phần của thành viên khác:**  
-`policy_tool.py` gọi MCP qua `_call_mcp_tool()`, nên nếu `mcp_server.py` trả lỗi hoặc output sai shape thì Sprint 3 và Sprint 4 sẽ thiếu trace `mcp_tools_used`.
+`policy_tool.py` gọi MCP qua `_call_mcp_tool()`, nên nếu `mcp_server.py` trả lỗi hoặc output sai shape thì Sprint 3 và Sprint 4 sẽ thiếu trace `mcp_tools_used`. Với HTTP mode, worker chỉ cần set `MCP_SERVER_URL=http://127.0.0.1:8765` để gọi `/tools/call`; nếu server chưa bật thì worker fallback về `dispatch_tool()` để giữ logic ổn định.
 
-**Bằng chứng:** commit `3fbed50 Complete mock MCP server handoff`, chỉ sửa `day09/lab/mcp_server.py`.
+**Bằng chứng:** `python mcp_server.py --serve` expose `GET /health`, `GET /tools/list`, `POST /tools/call`; test worker với `MCP_SERVER_URL=http://127.0.0.1:8765` ghi `transport="http"` cho `search_kb` và `get_ticket_info`.
 
 ---
 
@@ -65,13 +65,13 @@ Sau sửa: `python mcp_server.py` trả chunks từ `sla_p1_2026.txt` và `acces
 ## 4. Tôi tự đánh giá đóng góp của mình (100–150 từ)
 
 **Tôi làm tốt nhất ở điểm nào?**  
-Tôi làm tốt phần biến MCP server từ “có tool” thành module có thể bàn giao và test độc lập. Tôi cũng kiểm tra đường gọi thật từ `policy_tool.py` sang `mcp_server.py` để đảm bảo trace Sprint 3 có `mcp_tools_used`.
+Tôi làm tốt phần biến MCP server từ “có tool” thành module có thể bàn giao và test độc lập. Tôi cũng kiểm tra đường gọi thật từ `policy_tool.py` sang `mcp_server.py` để đảm bảo trace Sprint 3 có `mcp_tools_used`. Phần bonus được bổ sung bằng HTTP transport, nên worker có thể gọi tool qua process riêng thay vì chỉ import trực tiếp.
 
 **Tôi làm chưa tốt hoặc còn yếu ở điểm nào?**  
-Tôi chưa làm real MCP server bằng HTTP hoặc thư viện `mcp`, nên phần này chưa lấy được bonus +2. Fallback lexical cũng chỉ là giải pháp thực dụng, chưa thay thế được vector search thật.
+Tôi chưa dùng thư viện `mcp` chính thức; HTTP server hiện dùng Python stdlib để giảm rủi ro dependency. Fallback lexical cũng chỉ là giải pháp thực dụng, chưa thay thế được vector search thật.
 
 **Nhóm phụ thuộc vào tôi ở đâu?**  
-Nếu `mcp_server.py` không ổn định thì policy worker có thể route đúng nhưng không có evidence.
+Nếu `mcp_server.py` không ổn định hoặc HTTP endpoint trả sai shape thì policy worker có thể route đúng nhưng không có evidence.
 
 **Phần tôi phụ thuộc vào thành viên khác:**  
 Tôi phụ thuộc vào Supervisor/Graph Owner để set `needs_tool=True` và phụ thuộc vào Trace Owner để đưa `mcp_tools_used` vào log cuối.
@@ -80,4 +80,4 @@ Tôi phụ thuộc vào Supervisor/Graph Owner để set `needs_tool=True` và p
 
 ## 5. Nếu có thêm 2 giờ, tôi sẽ làm gì? (50–100 từ)
 
-Tôi sẽ thêm test script nhỏ cho MCP contract, ví dụ gọi `dispatch_tool("search_kb", ...)`, `dispatch_tool("get_ticket_info", ...)`, và case thiếu required input. Lý do là trace hiện tại chứng minh MCP call chạy được, nhưng chưa có test tự động để ngăn lỗi schema/output khi người khác chỉnh tiếp.
+Tôi sẽ thêm test script nhỏ cho MCP contract, ví dụ gọi `dispatch_tool("search_kb", ...)`, `dispatch_tool("get_ticket_info", ...)`, `GET /tools/list`, `POST /tools/call`, và case thiếu required input. Lý do là trace hiện tại chứng minh MCP call chạy được, nhưng chưa có test tự động để ngăn lỗi schema/output khi người khác chỉnh tiếp.

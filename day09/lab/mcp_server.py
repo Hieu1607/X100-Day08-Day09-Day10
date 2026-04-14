@@ -1,9 +1,10 @@
 """
-mcp_server.py — Mock MCP Server
+mcp_server.py — MCP Tool Server
 Sprint 3: Implement ít nhất 2 MCP tools.
 
-Mô phỏng MCP (Model Context Protocol) interface trong Python.
-Agent (MCP client) gọi dispatch_tool() thay vì hard-code từng API.
+Expose MCP-style tool discovery/execution in two modes:
+    - In-process: Agent gọi dispatch_tool() thay vì hard-code từng API.
+    - HTTP: Agent gọi /tools/list và /tools/call để lấy bonus real server.
 
 Tools available:
     1. search_kb(query, top_k)           → tìm kiếm Knowledge Base
@@ -22,15 +23,19 @@ Sử dụng:
 
 Sprint 3 TODO:
     - Option Standard: Sử dụng file này as-is (mock class) — complete.
-    - Option Advanced: Có thể thay dispatch_tool() bằng HTTP hoặc `mcp` library client/server.
+    - Option Advanced: Chạy HTTP server bằng `python mcp_server.py --serve`
+      rồi set MCP_SERVER_URL=http://127.0.0.1:8765.
 
 Chạy thử:
     python mcp_server.py
 """
 
+import argparse
+import json
 import os
 from importlib.util import find_spec
 from datetime import datetime
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from typing import Any, Dict
 
 
@@ -428,10 +433,92 @@ def dispatch_tool(tool_name: str, tool_input: dict) -> dict:
 
 
 # ─────────────────────────────────────────────
+# HTTP Server — real MCP-style transport for bonus
+# ─────────────────────────────────────────────
+
+class MCPHTTPHandler(BaseHTTPRequestHandler):
+    """Small stdlib HTTP transport around the tool registry."""
+
+    server_version = "Day09MCP/1.0"
+
+    def _send_json(self, status: int, payload: dict | list) -> None:
+        body = json.dumps(payload, ensure_ascii=False).encode("utf-8")
+        self.send_response(status)
+        self.send_header("Content-Type", "application/json; charset=utf-8")
+        self.send_header("Content-Length", str(len(body)))
+        self.end_headers()
+        self.wfile.write(body)
+
+    def _read_json_body(self) -> dict:
+        content_length = int(self.headers.get("Content-Length", "0"))
+        if content_length <= 0:
+            return {}
+        raw_body = self.rfile.read(content_length)
+        try:
+            payload = json.loads(raw_body.decode("utf-8"))
+        except json.JSONDecodeError:
+            return {"error": "Request body must be valid JSON."}
+        if not isinstance(payload, dict):
+            return {"error": "Request body must be a JSON object."}
+        return payload
+
+    def do_GET(self) -> None:
+        if self.path == "/health":
+            self._send_json(200, {"status": "ok", "tools": list(TOOL_REGISTRY.keys())})
+            return
+        if self.path == "/tools/list":
+            self._send_json(200, {"tools": list_tools()})
+            return
+        self._send_json(404, {"error": f"Unknown endpoint: {self.path}"})
+
+    def do_POST(self) -> None:
+        if self.path != "/tools/call":
+            self._send_json(404, {"error": f"Unknown endpoint: {self.path}"})
+            return
+
+        payload = self._read_json_body()
+        if payload.get("error"):
+            self._send_json(400, payload)
+            return
+
+        tool_name = payload.get("tool") or payload.get("tool_name")
+        tool_input = payload.get("input", payload.get("tool_input", {}))
+        output = dispatch_tool(tool_name, tool_input)
+        response = {
+            "tool": tool_name,
+            "input": tool_input,
+            "output": output,
+            "error": output.get("error") if isinstance(output, dict) else None,
+            "timestamp": datetime.now().isoformat(),
+        }
+        self._send_json(200, response)
+
+    def log_message(self, format: str, *args: Any) -> None:
+        print(f"[mcp_http] {self.address_string()} - {format % args}")
+
+
+def serve_http(host: str = "127.0.0.1", port: int = 8765) -> None:
+    server = ThreadingHTTPServer((host, port), MCPHTTPHandler)
+    print(f"MCP HTTP server listening on http://{host}:{port}")
+    print("Endpoints: GET /health, GET /tools/list, POST /tools/call")
+    server.serve_forever()
+
+
+# ─────────────────────────────────────────────
 # Test & Demo
 # ─────────────────────────────────────────────
 
 if __name__ == "__main__":
+    parser = argparse.ArgumentParser(description="Day09 MCP tool server")
+    parser.add_argument("--serve", action="store_true", help="Run real HTTP MCP-style server")
+    parser.add_argument("--host", default="127.0.0.1", help="HTTP server host")
+    parser.add_argument("--port", type=int, default=8765, help="HTTP server port")
+    args = parser.parse_args()
+
+    if args.serve:
+        serve_http(args.host, args.port)
+        raise SystemExit(0)
+
     print("=" * 60)
     print("MCP Server — Tool Discovery & Test")
     print("=" * 60)
@@ -475,4 +562,4 @@ if __name__ == "__main__":
     print(f"  Error: {err.get('error')}")
 
     print("\n✅ MCP server test done.")
-    print("\nStandard Sprint 3 MCP mock is ready. HTTP/real MCP server remains optional for bonus +2.")
+    print("\nFor bonus +2 real HTTP server: python mcp_server.py --serve")

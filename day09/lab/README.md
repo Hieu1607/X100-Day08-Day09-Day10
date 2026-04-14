@@ -220,6 +220,17 @@ print(result["retrieved_chunks"])
 | **Standard** | Mock MCP class trong Python, gọi qua function call | Full credit |
 | **Advanced** | MCP server thật dùng `mcp` library hoặc HTTP server | Bonus +2 |
 
+**Advanced HTTP mode đã hỗ trợ:**
+```bash
+python mcp_server.py --serve
+MCP_SERVER_URL=http://127.0.0.1:8765 python graph.py
+```
+
+HTTP endpoints:
+- `GET /health`
+- `GET /tools/list`
+- `POST /tools/call` với body `{"tool": "search_kb", "input": {"query": "SLA P1", "top_k": 3}}`
+
 **Definition of Done:**
 - [ ] `mcp_server.py` có ít nhất 2 tools implement
 - [ ] Policy worker gọi MCP client, không direct call ChromaDB

@@ -18,6 +18,9 @@ Gọi độc lập để test:
 
 import os
 import sys
+import json
+import urllib.request
+import urllib.error
 from typing import Optional
 
 from datetime import datetime
@@ -32,25 +35,64 @@ WORKER_NAME = "policy_tool_worker"
 # MCP Client — Sprint 3: Thay bằng real MCP call
 # ─────────────────────────────────────────────
 
+def _call_mcp_in_process(tool_name: str, tool_input: dict) -> dict:
+    from mcp_server import dispatch_tool
+
+    return dispatch_tool(tool_name, tool_input)
+
+
 def _call_mcp_tool(tool_name: str, tool_input: dict) -> dict:
     """
     Gọi MCP tool.
 
-    Sprint 3 TODO: Implement bằng cách import mcp_server hoặc gọi HTTP.
-
-    Hiện tại: Import trực tiếp từ mcp_server.py (trong-process mock).
+    Nếu MCP_SERVER_URL được set, gọi real HTTP MCP-style server.
+    Nếu không, fallback sang dispatch_tool() in-process để test local nhanh.
     """
     from datetime import datetime
 
     try:
-        # TODO Sprint 3: Thay bằng real MCP client nếu dùng HTTP server
-        from mcp_server import dispatch_tool
-        result = dispatch_tool(tool_name, tool_input)
+        server_url = os.getenv("MCP_SERVER_URL", "").rstrip("/")
+        if server_url:
+            try:
+                payload = json.dumps(
+                    {"tool": tool_name, "input": tool_input},
+                    ensure_ascii=False,
+                ).encode("utf-8")
+                request = urllib.request.Request(
+                    f"{server_url}/tools/call",
+                    data=payload,
+                    headers={"Content-Type": "application/json; charset=utf-8"},
+                    method="POST",
+                )
+                with urllib.request.urlopen(request, timeout=5) as response:
+                    result = json.loads(response.read().decode("utf-8"))
+                return {
+                    "tool": tool_name,
+                    "input": tool_input,
+                    "output": result.get("output"),
+                    "error": result.get("error"),
+                    "transport": "http",
+                    "timestamp": result.get("timestamp", datetime.now().isoformat()),
+                }
+            except (urllib.error.URLError, TimeoutError, json.JSONDecodeError) as e:
+                fallback_result = _call_mcp_in_process(tool_name, tool_input)
+                return {
+                    "tool": tool_name,
+                    "input": tool_input,
+                    "output": fallback_result,
+                    "error": None,
+                    "transport": "http_fallback_in_process",
+                    "transport_error": {"code": "MCP_HTTP_CALL_FAILED", "reason": str(e)},
+                    "timestamp": datetime.now().isoformat(),
+                }
+
+        result = _call_mcp_in_process(tool_name, tool_input)
         return {
             "tool": tool_name,
             "input": tool_input,
             "output": result,
             "error": None,
+            "transport": "in_process",
             "timestamp": datetime.now().isoformat(),
         }
     except Exception as e:
@@ -59,6 +101,7 @@ def _call_mcp_tool(tool_name: str, tool_input: dict) -> dict:
             "input": tool_input,
             "output": None,
             "error": {"code": "MCP_CALL_FAILED", "reason": str(e)},
+            "transport": "unknown",
             "timestamp": datetime.now().isoformat(),
         }
 
@@ -72,8 +115,8 @@ def _extract_order_date(task: str):
     import re
 
     patterns = [
-        "(\d{1,2}/\d{1,2}/\d{4})",
-        "(\d{1,2}-\d{1,2}-\d{4})",
+        r"(\d{1,2}/\d{1,2}/\d{4})",
+        r"(\d{1,2}-\d{1,2}-\d{4})",
     ]
 
     for p in patterns:
