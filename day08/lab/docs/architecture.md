@@ -18,7 +18,20 @@
 ```
 
 **Mô tả ngắn gọn:**
-> TODO: Mô tả hệ thống trong 2-3 câu. Nhóm xây gì? Cho ai dùng? Giải quyết vấn đề gì?
+> Hệ thống này là một pipeline RAG nội bộ giúp tra cứu nhanh các tài liệu policy, SOP, SLA và FAQ cho đội IT, CS, HR.
+> Dữ liệu được index thành các chunk có metadata và lưu trong ChromaDB; khi có câu hỏi, hệ thống retrieve (dense/hybrid), có thể rerank, rồi sinh câu trả lời grounded kèm citation nguồn.
+> Mục tiêu là giảm thời gian tìm tài liệu, tăng độ chính xác câu trả lời và hạn chế hallucination nhờ chỉ trả lời từ ngữ cảnh đã truy xuất.
+
+### Phân vai (tham chiếu README)
+
+| Vai trò | Tên | Trách nhiệm chính | Sprint lead |
+|---------|-----|------------------|------------|
+| **Tech Lead** | Tống Tiến Mạnh | Giữ nhịp sprint, nối code end-to-end | 1, 2 |
+| **Retrieval Owner** | Nguyễn Minh Hiếu | Retrieval strategy, rerank | 1, 3 |
+| **Retrieval Owner** | Nguyễn Tùng Lâm | Chunking, metadata, retrieval strategy, rerank | 1, 3 |
+| **Eval Owner** | Nguyễn Việt Long | Test questions, expected evidence, scorecard, A/B | 3, 4 |
+| **Eval Owner** | Hà Huy Hoàng | Test questions, expected evidence, scorecard, A/B | 3, 4 |
+| **Documentation Owner** | Nguyễn Quang Đăng | architecture.md, tuning-log, báo cáo nhóm | 4 |
 
 ---
 
@@ -27,22 +40,22 @@
 ### Tài liệu được index
 | File | Nguồn | Department | Số chunk |
 |------|-------|-----------|---------|
-| `policy_refund_v4.txt` | policy/refund-v4.pdf | CS | TODO |
-| `sla_p1_2026.txt` | support/sla-p1-2026.pdf | IT | TODO |
-| `access_control_sop.txt` | it/access-control-sop.md | IT Security | TODO |
-| `it_helpdesk_faq.txt` | support/helpdesk-faq.md | IT | TODO |
-| `hr_leave_policy.txt` | hr/leave-policy-2026.pdf | HR | TODO |
+| `policy_refund_v4.txt` | policy/refund-v4.pdf | CS | 6 |
+| `sla_p1_2026.txt` | support/sla-p1-2026.pdf | IT | 5 |
+| `access_control_sop.txt` | it/access-control-sop.md | IT Security | 8 |
+| `it_helpdesk_faq.txt` | support/helpdesk-faq.md | IT | 6 |
+| `hr_leave_policy.txt` | hr/leave-policy-2026.pdf | HR | 5 |
 
 ### Quyết định chunking
 | Tham số | Giá trị | Lý do |
 |---------|---------|-------|
-| Chunk size | TODO tokens | TODO |
-| Overlap | TODO tokens | TODO |
-| Chunking strategy | Heading-based / paragraph-based | TODO |
+| Chunk size | 400 tokens (ước lượng theo `CHUNK_SIZE`) | Cân bằng giữa đủ ngữ cảnh và tránh context quá dài khi retrieve nhiều chunk |
+| Overlap | 80 tokens (ước lượng theo `CHUNK_OVERLAP`) | Giữ liên tục ngữ nghĩa giữa các chunk liền kề, giảm mất ý ở ranh giới |
+| Chunking strategy | Heading-based, fallback paragraph/size split + overlap | Ưu tiên ranh giới tự nhiên theo `=== Section ... ===`, sau đó mới tách theo paragraph/độ dài |
 | Metadata fields | source, section, effective_date, department, access | Phục vụ filter, freshness, citation |
 
 ### Embedding model
-- **Model**: TODO (OpenAI text-embedding-3-small / paraphrase-multilingual-MiniLM-L12-v2)
+- **Model**: OpenAI-compatible `text-embedding-3-small` (qua `CUSTOM_API_KEY`)
 - **Vector store**: ChromaDB (PersistentClient)
 - **Similarity metric**: Cosine
 
@@ -57,19 +70,24 @@
 | Top-k search | 10 |
 | Top-k select | 3 |
 | Rerank | Không |
+| Query transform | Không (`None`) |
 
 ### Variant (Sprint 3)
 | Tham số | Giá trị | Thay đổi so với baseline |
 |---------|---------|------------------------|
-| Strategy | TODO (hybrid / dense) | TODO |
-| Top-k search | TODO | TODO |
-| Top-k select | TODO | TODO |
-| Rerank | TODO (cross-encoder / MMR) | TODO |
-| Query transform | TODO (expansion / HyDE / decomposition) | TODO |
+| Strategy | Dense (embedding similarity) | Giữ nguyên retrieval mode để A/B công bằng, chỉ tập trung kiểm chứng tác động của rerank |
+| Top-k search | 10 | Giữ nguyên để so sánh công bằng (A/B chỉ đổi biến chính) |
+| Top-k select | 3 | Giữ nguyên để kiểm soát độ dài context |
+| Rerank | LLM-based rerank (`use_rerank=True`, model `RERANK_MODEL`) | Thêm bước chọn lại top-3 chunk liên quan nhất sau khi retrieve rộng |
+| Query transform | `None` | Giữ nguyên để tránh nhiễu khi đánh giá tác động của rerank |
+
+**Ghi chú triển khai trong code:**
+- Pipeline thực hiện: query -> (query transform optional) -> retrieve -> deduplicate theo `text` (giữ score cao nhất) -> (rerank optional) -> generate.
+- Hàm `compare_retrieval_strategies()` hiện so sánh `dense` và `hybrid`; rerank/query transform được bật khi gọi `rag_answer()` với config tương ứng.
 
 **Lý do chọn variant này:**
-> TODO: Giải thích tại sao chọn biến này để tune.
-> Ví dụ: "Chọn hybrid vì corpus có cả câu tự nhiên (policy) lẫn mã lỗi và tên chuyên ngành (SLA ticket P1, ERR-403)."
+> Chọn dense + rerank vì baseline đã đạt Context Recall cao (5.00/5), nhưng Relevance và Completeness còn hạn chế do thứ tự chunk chưa tối ưu.
+> Bật rerank giúp cải thiện chất lượng câu trả lời mà không đổi retrieval mode: Faithfulness 4.60 -> 4.70, Relevance 3.00 -> 3.20, Completeness 3.50 -> 3.60.
 
 ---
 
@@ -78,14 +96,15 @@
 ### Grounded Prompt Template
 ```
 Answer only from the retrieved context below.
-If the context is insufficient, say you do not know.
-Cite the source field when possible.
+If the context is insufficient to answer the question, say you do not know and do not make up information.
+Cite the source field (in brackets like [1]) when possible.
 Keep your answer short, clear, and factual.
+Respond in the same language as the question.
 
 Question: {query}
 
 Context:
-[1] {source} | {section} | score={score}
+[1] {source} | {section} | dept={department} | effective={effective_date} | score={score}
 {chunk_text}
 
 [2] ...
@@ -96,7 +115,10 @@ Answer:
 ### LLM Configuration
 | Tham số | Giá trị |
 |---------|---------|
-| Model | TODO (gpt-4o-mini / gemini-1.5-flash) |
+| Model | `LLM_MODEL` (default: `openai-gpt-4o`, đọc từ biến môi trường) |
+| Rerank model | `RERANK_MODEL` (default: `openai-gpt-4o`) |
+| API key | `SHOPAIKEY_API_KEY` |
+| Base URL | `https://api.shopaikey.com/v1` |
 | Temperature | 0 (để output ổn định cho eval) |
 | Max tokens | 512 |
 
@@ -118,19 +140,33 @@ Answer:
 
 ## 6. Diagram (tùy chọn)
 
-> TODO: Vẽ sơ đồ pipeline nếu có thời gian. Có thể dùng Mermaid hoặc drawio.
+> Sơ đồ pipeline thực tế đang dùng trong repo.
 
 ```mermaid
 graph LR
-    A[User Query] --> B[Query Embedding]
-    B --> C[ChromaDB Vector Search]
-    C --> D[Top-10 Candidates]
-    D --> E{Rerank?}
-    E -->|Yes| F[Cross-Encoder]
-    E -->|No| G[Top-3 Select]
-    F --> G
-    G --> H[Build Context Block]
-    H --> I[Grounded Prompt]
-    I --> J[LLM]
-    J --> K[Answer + Citation]
+    A[User Query] --> B{Query Transform?}
+    B -->|No| C[Original Query]
+    B -->|Yes| D[Expansion / Decomposition / HyDE]
+    D --> E[Transformed Queries]
+    C --> F{Retrieval Mode}
+    E --> F
+    F -->|Dense| G[Chroma Vector Search]
+    F -->|Sparse| H[BM25 Search]
+    F -->|Hybrid| I[RRF Merge Dense + Sparse]
+    G --> J[Candidate Chunks Top-k Search]
+    H --> J
+    I --> J
+    J --> K[Deduplicate by Text Keep Best Score]
+    K --> L{Use Rerank?}
+    L -->|No| M[Select Top-k]
+    L -->|Yes| N[LLM Rerank]
+    N --> M
+    M --> O[Build Context Block]
+    O --> P[Grounded Prompt]
+    P --> Q[LLM Generate]
+    Q --> R{Enough Context?}
+    R -->|No| S[Abstain]
+    R -->|Yes| T[Answer + Citation]
+    S --> U[Final Output]
+    T --> U[Final Output]
 ```
