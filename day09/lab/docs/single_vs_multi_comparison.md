@@ -11,13 +11,13 @@ Nguồn số liệu chính: artifacts/eval_report.json và artifacts/grading_run
 
 | Metric | Day 08 (Single Agent) | Day 09 (Multi-Agent) | Delta | Ghi chú |
 |--------|----------------------|---------------------|-------|---------|
-| Avg confidence | 0.820 | 0.475 | -0.345 | Day09 thận trọng hơn, abstain nhiều |
-| Avg latency (ms) | 2500 | 4432 | +1932 (+77.3%) | Chi phí orchestration + tool calls |
-| Abstain rate (%) | 20% | 67% | +47pp | Day09 ưu tiên an toàn, tránh bịa |
+| Avg confidence | 0.820 | 0.461 | -0.359 | Day09 thận trọng hơn, abstain nhiều |
+| Avg latency (ms) | 2500 | 4668 | +2168 (+86.7%) | Chi phí orchestration + tool calls |
+| Abstain rate (%) | 10% | 28% | +18pp | Day09 ưu tiên an toàn, tránh bịa |
 | Multi-hop accuracy | Not tracked | Not tracked | N/A | Chưa có script chấm chính thức theo loại câu |
 | Routing visibility | Không có | Có route_reason + supervisor_route | N/A | Day09 debug trực tiếp theo route |
 | Debug time (estimate) | 25 phút | 10 phút | -15 phút | Dựa trên 1 vòng debug route + retrieval |
-| MCP usage rate | N/A | 47% (7/15) | N/A | Day09 gọi MCP theo nhu cầu |
+| MCP usage rate | N/A | 50% (20/40) | N/A | Day09 gọi MCP theo nhu cầu |
 
 ---
 
@@ -51,7 +51,7 @@ Day09 phù hợp hơn cho multi-hop vì có thể tách vai retrieval/policy/too
 
 | Nhận xét | Day 08 | Day 09 |
 |---------|--------|--------|
-| Abstain rate | 20% | 67% |
+| Abstain rate | 10% | 28% |
 | Hallucination cases | Cao hơn | Thấp hơn |
 | Observation | Có xu hướng trả lời đoán | Từ chối trả lời khi evidence yếu |
 
@@ -105,7 +105,7 @@ Day09 dễ mở rộng rõ rệt. Việc tách contract giữa supervisor và wo
 |---------|-------------|-------------|
 | Simple query | 1 LLM call | 1 LLM call (synthesis) |
 | Complex query | 1 LLM call | 2 LLM calls (policy + synthesis) |
-| MCP tool call | N/A | Trung bình 0.6 call/query (9 calls/15 traces) |
+| MCP tool call | N/A | Trung bình 0.7 call/query (28 calls/40 traces) |
 
 **Nhận xét về cost-benefit:**
 

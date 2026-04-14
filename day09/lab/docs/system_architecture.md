@@ -128,7 +128,7 @@ Luồng thực thi trong graph hiện tại:
 
 **Quan sát thực tế của nhóm:**
 
-Trong 15 trace gần nhất, hệ thống có phân bố route rõ ràng giữa retrieval (53%) và policy (47%), có ghi đầy đủ route_reason cho 100% run. Điều này giúp nhóm truy ngược nguyên nhân nhanh hơn khi câu trả lời bị abstain hoặc lệch nguồn.
+Trong 40 trace gần nhất, hệ thống có phân bố route cân bằng giữa retrieval (50%) và policy (50%), có ghi đầy đủ route_reason cho 100% run. Điều này giúp nhóm truy ngược nguyên nhân nhanh hơn khi câu trả lời bị abstain hoặc lệch nguồn.
 
 ---
 

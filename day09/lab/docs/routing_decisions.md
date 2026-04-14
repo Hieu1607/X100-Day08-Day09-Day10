@@ -90,15 +90,15 @@ Câu này là multi-hop nên cần vừa SLA vừa access policy. Route hiện t
 
 | Worker | Số câu được route | % tổng |
 |--------|------------------|--------|
-| retrieval_worker | 8 | 53% |
-| policy_tool_worker | 7 | 47% |
+| retrieval_worker | 5 | 50% |
+| policy_tool_worker | 5 | 50% |
 | human_review | 0 | 0% |
 
 ### Routing Accuracy
 
 - Câu route đúng: 9 / 10 (theo bộ grading)
 - Câu route sai hoặc partial: 1 / 10 (gq09, thiếu retrieval evidence cho nhánh SLA)
-- Câu trigger HITL: 1 / 15 (theo tổng trace gần nhất trong eval_report)
+- Câu trigger HITL: 0 / 10 (trong grading run), 2 / 40 (5%) trong toàn bộ trace gần nhất
 
 ### Lesson Learned về Routing
 

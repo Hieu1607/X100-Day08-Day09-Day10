@@ -37,7 +37,7 @@
 
 Nhóm triển khai kiến trúc Supervisor-Worker với 5 node chính: supervisor, retrieval_worker, policy_tool_worker, human_review và synthesis_worker. Dòng chảy xử lý bắt đầu từ supervisor để phân loại intent và mức rủi ro, sau đó route sang worker phù hợp trước khi tổng hợp output cuối ở synthesis. So với pipeline single-agent của Day08, hệ thống mới tách rõ trách nhiệm từng thành phần, giúp quan sát và kiểm thử theo module.
 
-Về mặt quan sát, mỗi run đều lưu trace gồm supervisor_route, route_reason, workers_called, mcp_tools_used, confidence và latency_ms. Trong 15 trace gần nhất, phân bố route là 8/15 cho retrieval_worker và 7/15 cho policy_tool_worker, cho thấy supervisor đã thực hiện phân nhánh tương đối cân bằng theo loại câu hỏi.
+Về mặt quan sát, mỗi run đều lưu trace gồm supervisor_route, route_reason, workers_called, mcp_tools_used, confidence và latency_ms. Trong 40 trace gần nhất, phân bố route là 20/40 cho retrieval_worker và 20/40 cho policy_tool_worker, cho thấy supervisor phân nhánh cân bằng giữa hai nhóm câu hỏi chính.
 
 **Routing logic cốt lõi:**
 > Mô tả logic supervisor dùng để quyết định route (keyword matching, LLM classifier, rule-based, v.v.)
@@ -73,7 +73,7 @@ Trong giai đoạn đầu, nhóm gặp hai áp lực cùng lúc: cần chạy �
 
 **Phương án đã chọn và lý do:**
 
-Nhóm chọn rule-based routing để ưu tiên tính ổn định và khả năng quan sát theo yêu cầu bài lab. Quyết định này giúp nhóm xác định lỗi nhanh khi pipeline sai: nếu route_reason cho thấy vào đúng nhánh nhưng answer vẫn sai thì lỗi nằm ở worker; nếu route_reason chưa đúng thì chỉnh logic supervisor. Trong thực tế, route distribution 8/15 retrieval và 7/15 policy cho thấy rule hiện tại đã bao phủ được nhiều loại câu hỏi thay vì lệch nặng về một nhánh.
+Nhóm chọn rule-based routing để ưu tiên tính ổn định và khả năng quan sát theo yêu cầu bài lab. Quyết định này giúp nhóm xác định lỗi nhanh khi pipeline sai: nếu route_reason cho thấy vào đúng nhánh nhưng answer vẫn sai thì lỗi nằm ở worker; nếu route_reason chưa đúng thì chỉnh logic supervisor. Trong dữ liệu cập nhật, route distribution 20/40 retrieval và 20/40 policy cho thấy logic route đang cân bằng thay vì lệch về một phía.
 
 **Bằng chứng từ trace/code:**
 > Dẫn chứng cụ thể (VD: route_reason trong trace, đoạn code, v.v.)
@@ -126,7 +126,7 @@ Có. Trace ghi 2 workers: policy_tool_worker và synthesis_worker. Hệ thống 
 
 **Metric thay đổi rõ nhất (có số liệu):**
 
-Hai thay đổi rõ nhất là latency và abstain rate. Avg latency tăng từ 2500ms (Day08) lên 4432ms (Day09), tương đương +77.3%. Abstain rate tăng từ 20% lên 67% (+47 điểm phần trăm). Ngoài ra, avg confidence giảm từ 0.820 xuống 0.475.
+Hai thay đổi rõ nhất là latency và confidence. Avg latency tăng từ 2500ms (Day08) lên 4668ms (Day09), tương đương +86.7%. Avg confidence giảm từ 0.820 xuống 0.461. Về abstain rate, bản chạy cập nhật cho thấy Day09 ở mức 28% so với 10% của Day08 (+18 điểm phần trăm), thấp hơn đáng kể so với các lần chạy thử trước đó.
 
 **Điều nhóm bất ngờ nhất khi chuyển từ single sang multi-agent:**
 
@@ -134,7 +134,7 @@ Hai thay đổi rõ nhất là latency và abstain rate. Avg latency tăng từ 
 
 **Trường hợp multi-agent KHÔNG giúp ích hoặc làm chậm hệ thống:**
 
-Với câu đơn giản một nguồn, multi-agent làm tăng overhead orchestration và có thể tạo thêm abstain không cần thiết nếu retrieval worker bỏ sót evidence. Khi đó, single-agent có thể cho phản hồi nhanh hơn.
+Với câu đơn giản một nguồn, multi-agent vẫn làm tăng overhead orchestration và chi phí gọi model/tool. Trong các trường hợp truy vấn dễ, single-agent vẫn có lợi thế tốc độ phản hồi.
 
 ---
 
@@ -167,7 +167,7 @@ Nhóm sẽ thêm checkpoint tích hợp sau mỗi sprint (không chờ đến cu
 
 ## 6. Nếu có thêm 1 ngày, nhóm sẽ làm gì? (50–100 từ)
 
-Nếu có thêm 1 ngày, nhóm sẽ triển khai hai cải tiến. Thứ nhất, bổ sung route orchestration cho truy vấn multi-intent để cho phép đi qua cả retrieval và policy một cách có chủ đích, đặc biệt cho mẫu câu kiểu gq09. Thứ hai, tinh chỉnh retrieval (query rewrite + rerank theo domain) nhằm giảm abstain rate từ mức 67% hiện tại xuống dưới 40%. Hai hướng này bám trực tiếp vào điểm yếu đã thấy trong trace và metrics.
+Nếu có thêm 1 ngày, nhóm sẽ triển khai hai cải tiến. Thứ nhất, bổ sung route orchestration cho truy vấn multi-intent để cho phép đi qua cả retrieval và policy một cách có chủ đích, đặc biệt cho mẫu câu kiểu gq09. Thứ hai, tinh chỉnh retrieval (query rewrite + rerank theo domain) nhằm giảm abstain rate từ mức 28% hiện tại xuống dưới 20% mà vẫn giữ tính an toàn chống hallucination. Hai hướng này bám trực tiếp vào điểm yếu đã thấy trong trace và metrics cập nhật.
 
 ---
 
